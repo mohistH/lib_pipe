@@ -8,7 +8,7 @@
   之前没有做过这样的需求，都是多线程玩的嗨。弥补多进程知识....
 
 ## 2. 目录说明  
-
+```
 .
 ├───Debug		// exe的输出路径，目前,exe编译环境：win10 1909 + VS2015up3
 │   ├───1		// 子进程1所需文件
@@ -17,6 +17,7 @@
 ├───demo_create // client项目，创建一个子进程的程序
 ├───lib_pipe	// 管道通信项目，动态库
 └───main		// main项目，负责调用client子进程  
+```
 
 ## 3. 项目说明  
 
@@ -103,7 +104,8 @@
 	pipe.uninit();
 ```
 
-  * 接收
+  * 接收  
+  
     接收需要重写函数 on_recv_data 
 ```
 	void on_recv_data(const char *pdata, const unsigned int len_recv_data)
