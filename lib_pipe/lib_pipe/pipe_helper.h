@@ -3,6 +3,16 @@
 #include <iostream>
 #include "pipe_interface.h"
 
+// 用作调试用，
+#define is_debug
+
+#ifdef is_debug
+#include <iostream>
+// 使用va_start需要的头文件
+#include <stdarg.h>
+
+#endif //!is_debug
+
 namespace lib_pipe
 {
 	// 数据定义
@@ -133,6 +143,20 @@ namespace lib_pipe
 		*/
 		pipe_param_win& get_pipe_param() { return _pipe_param; }
 
+
+		/**
+		* @brief: 接收管道数据线程函数
+		*/
+		static DWORD WINAPI thread_recv_data(LPVOID lpParam);
+
+
+		bool get_thread_recv_is_running();
+		void set_thread_recv_is_running(const bool val);
+
+		/**
+		* @brief: 输出调试信息
+		*/
+		void log(const char *pdata, ...);
 	private:
 
 		/*
@@ -151,6 +175,9 @@ namespace lib_pipe
 				
 		*/
 		bool is_connected();
+
+
+
 
 	private:
 		/*

@@ -4,12 +4,13 @@
 
 
 
+
 // windows
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32)
 
 //----------------------------------------------------------------------
 	// 定义 .dll  导出符号
-	#ifndef _lib_pipe_api_ \
+	#ifndef _lib_pipe_api_
 		#define _lib_pipe_api_	__declspec(dllexport)
 	#else
 		#define _lib_pipe_api_	__declspec(dllimport)
@@ -27,28 +28,34 @@
 
 
 // _UNICODE用于C运行库。
-#ifdef _UNICODE \
-	#ifndef UNICODE \ 
-		#define UNICODE \
+#ifdef _UNICODE
+	#ifndef UNICODE
+		#define UNICODE
 	#endif ///! UNICODE
 #endif /// !_UNICODE
 
 // UNICODE用于WINAPI
-#ifdef UNICODE \
-	#ifndef _UNICODE \
-		#define _UNICODE \
+#ifdef UNICODE
+	#ifndef _UNICODE
+		#define _UNICODE
 	#endif///!_UNICODE
 #endif ///!UNICODE
 
 #if defined(__clang__) || defined(__GNUC__)
 
 #elif defined(_MSC_VER)
-	#ifndef compiler_is_vs \
+	#ifndef compiler_is_vs
 		#define compiler_is_vs 1
 	#else 
 		#define compiler_is_vs 0
 	#endif /// !os_is_win
 #endif /// 
+
+
+
+#ifdef compiler_is_vs
+#include <windows.h>
+#endif //!
 
 
 
@@ -163,7 +170,7 @@ namespace lib_pipe
 	/*
 	* @brief: 管道接口
 
-	*  @ std::string str_pipe_name - 管道名字 ， 例： "\\\\.\\pipe\\ReadPipe"
+	*  @ std::string str_pipe_name - 管道名字 ， 例： "\\\\.\\pipe\\管道名"
 	*  @ bool to_create_pipe - true-创建， false - 不创建，直接连
 	*/
 	class ipipe_interface
@@ -174,7 +181,7 @@ namespace lib_pipe
 		/*
 		*  @ brief: 初始化管道
 		*  @ const pipe_param_base - 初始化参数
-		*  @ irecv_data *precv_data - 接收函数对象
+		*  @ irecv_data *precv_data - irecv_data接收函数对象
 		*  @ return - lib_pipe::ret_type
 		*/
 		virtual ret_type init(const pipe_param_base& param, irecv_data *precv_data) = 0;
@@ -230,7 +237,7 @@ namespace lib_pipe
 		// 将std::string 转为 std::wstring
 		static std::wstring str2wstr_win(const std::string &str);
 		
-		// 获取当前工作墓库，
+		// 获取当前工作目录库，
 		static std::string get_cwd();
 
 #ifdef compiler_is_vs

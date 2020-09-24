@@ -1,22 +1,27 @@
 #include "stdafx.h"
 #include "pipe_helper.h"
 
+
+
+
 namespace lib_pipe
 {
-	/*
-	* @brief: 线程函数
+
+
+	/**
+	*	@brief:接收管道数据线程函数
 	*/
-	DWORD WINAPI thread_recv_data(LPVOID lpParam)
+	DWORD WINAPI pipe_helper::thread_recv_data(LPVOID lpParam)
 	{
 		// 准备参数
-		pipe_helper* pipe_obj	= NULL;
-		pipe_obj				= reinterpret_cast<pipe_helper*>(lpParam);
-		
+		pipe_helper* pipe_obj = NULL;
+		pipe_obj = reinterpret_cast<pipe_helper*>(lpParam);
+
 		// 1. 没有对象
-		if (NULL				== pipe_obj)
+		if (NULL == pipe_obj)
 			return 0;
 
-		
+
 
 		// 2. 开始接收数据，先准备参数
 		pipe_param_win& pipe_param = pipe_obj->get_pipe_param();
@@ -28,66 +33,98 @@ namespace lib_pipe
 		DWORD len_real_read = 0;
 
 
-		OVERLAPPED over_lapped = { 0, 0, 0, 0, pipe_param._thread._hevent};
+		OVERLAPPED over_lapped = { 0, 0, 0, 0, pipe_param._thread._hevent };
 
-		//if (INVALID_HANDLE_VALUE != pipe_param._thread._hevent)
-		//	return 0;
+		if (INVALID_HANDLE_VALUE != pipe_param._thread._hevent)
+			return 0;
 
-
+		pipe_obj->log("\n接收线程，1111即将进入while\n\n");
 		// 线程运行
-		while (pipe_param._thread._is_running)	/// 通过标志位 控制线程运行
+		while (pipe_obj->get_thread_recv_is_running())	// 通过标志位 控制线程运行
 		{
-			// 等待加入管道, 连接 信息写入overlap中
-			// ConnectNamedPipe(pipe_param._handle, &over_lapped);
-			//等待
-			// WaitForSingleObject(pipe_param._thread._hevent, INFINITE);
+			pipe_obj->log("\n接收线程，2222等待加入管道, 连接 信息写入overlap中\n\n");
 
-			//if (!GetOverlappedResult(pipe_param._handle, &over_lapped, &len_real_read, TRUE))
-			//{
-			//	break;
-			//}
+			 // 等待加入管道, 连接 信息写入overlap中
+			 ConnectNamedPipe(pipe_param._handle, &over_lapped);
 
-			//std::cout << "\n\n进入接收while\n\n";
+			 pipe_obj->log("\n接收线程，等待, 3333INFINITE:一直等待\n\n");
+			 // 等待, INFINITE:一直等待
+			 WaitForSingleObject(pipe_param._thread._hevent, INFINITE);
 
+			 pipe_obj->log("\n接收线程，等待, 4444I检测io是否完成,完成的话就停止\n\n");
+			 // 检测io是否完成,完成的话就停止
+			if (!GetOverlappedResult(pipe_param._handle, &over_lapped, &len_real_read, TRUE))
+			{
+				break;
+			}
+
+
+			pipe_obj->log("\n接收线程，等待, 5555读取管道数据 ： 阻塞\n\n");
 			// 读取管道数据 ： 阻塞
-			int ret_val			= (int)ReadFile(	pipe_param._handle,	// 管道标识符
-													arr_recv_data,		// 接收缓冲
-													pipe_buf_size_4096, // 接收缓冲区大小
-													&len_real_read,		// 真正读入长度
-													NULL				// 默认传递NULL
-												);
+			int ret_val = (int)ReadFile(pipe_param._handle,	// 管道标识符
+										arr_recv_data,		// 接收缓冲
+										pipe_buf_size_4096, // 接收缓冲区大小
+										&len_real_read,		// 真正读入长度
+										NULL				// 默认传递NULL
+			);
 			// 2.1 读取成功
 			if (1 == ret_val)
 			{
 				// 2.1.1 如果超过缓冲区长度，则丢弃, 准备接收下一组数据
 				if (pipe_buf_size_4096 < len_real_read || 0 == len_real_read)
 				{
+					pipe_obj->log("\n接收线程，等待, 6666如果超过缓冲区长度，则丢弃, 准备接收下一组数据\n\n");
 				}
 				else
 				{
+
+					pipe_obj->log("\n接收线程，等待, 7777 长度合适，加上结束符,调用接收函数\n\n");
+
 					// 2.1.2 长度合适，加上结束符
 					arr_recv_data[len_real_read] = '\0';
-					
+
 					// 调用接收函数
 					pipe_param._precv_data->on_recv_data(arr_recv_data, len_real_read);
 				}
+
+				memset(arr_recv_data, 0, pipe_buf_size_4096 + 1);
 			}
 			// 2.2 读取失败
-			else 
+			else
 			{
 				// 继续读取下一个
+				pipe_obj->log("\n接收线程，等待, 8888 读取失败\n\n");
 			}
 
 			// 避免CPU被一直忙于处理当前线程
 			Sleep(2);
 
-			memset(arr_recv_data, 0, pipe_buf_size_4096 + 1);
-			// DisconnectNamedPipe(pipe_param._handle);
+			pipe_obj->log("\n接收线程，等待, 9999 断开管道\n\n");
+			// 断开管道
+			DisconnectNamedPipe(pipe_param._handle);
 		}
 
 		return 0;
 	}
 
+
+
+
+	/**
+	*	@brief:
+	*/
+	bool pipe_helper::get_thread_recv_is_running()
+	{
+		return _pipe_param._thread._is_running;
+	}
+
+	/**
+	*	@brief:
+	*/
+	void pipe_helper::set_thread_recv_is_running(const bool val)
+	{
+		_pipe_param._thread._is_running = val;
+	}
 
 	/*
 	*	@brief: 初始化参数和创建管道
@@ -145,11 +182,25 @@ namespace lib_pipe
 		// 需要接收数据，再创建线程
 		if (NULL != _pipe_param._precv_data)
 		{
-			// 4.1 标记线程运行标记为true
-			thread_param._is_running = true;
-
 			// 创建事件
-			//thread_param._hevent = CreateEvent(NULL, FALSE, FALSE, FALSE);
+			/**
+			参数1 lpEventAttributes    权限,一般NULL就是默认权限
+			参数2 bManualReset        TRUE代表手动重置,FALSE自动重置
+			参数3 bInitialState       TRUE代表可触发, FALSE非触发(阻塞)
+			参数4 lpName              一个对象的名称,跨进程寻址,一般NULL
+			*/
+			thread_param._hevent = CreateEvent(NULL, FALSE, FALSE, FALSE);
+
+			if (INVALID_HANDLE_VALUE == thread_param._hevent)
+			{
+				ret_val.set(GetLastError(), std::string("GetLastError"));
+				return ret_val;
+			}
+
+
+			// 4.1 标记线程运行标记为true
+				set_thread_recv_is_running(true);
+
 
 			// 4.2 创建线程
 			thread_param._handle = CreateThread(NULL,	// 默认 NULL
@@ -257,6 +308,54 @@ namespace lib_pipe
 		return (INVALID_HANDLE_VALUE == _pipe_param._handle) ? false : true;
 	}
 
+
+	/**
+	*	@brief:
+	*/
+	void pipe_helper::log(const char *pdata, ...)
+	{
+#ifdef is_debug
+		va_list ap;
+		va_start(ap, pdata);
+
+		// 1、计算得到长度
+		//---------------------------------------------------
+		// 返回 成功写入的字符个数
+		int count_write = snprintf(NULL, 0, pdata, ap);
+		va_end(ap);
+
+		// 长度为空
+		if (0 >= count_write)
+			return;
+
+		count_write++;
+
+		// 2、构造字符串再输出
+		//---------------------------------------------------
+		va_start(ap, pdata);
+
+		char *pbuf_out = NULL;
+		pbuf_out = (char *)malloc(count_write);
+		if (NULL == pbuf_out)
+		{
+			va_end(ap);
+			return;
+		}
+
+		// 构造输出
+		vsnprintf(pbuf_out, count_write, pdata, ap);
+		// 释放空间
+		va_end(ap);
+
+		// 输出结果
+		std::cout << pbuf_out;
+
+		// 释放内存空间
+		free(pbuf_out);
+		pbuf_out = NULL;
+#endif // 
+	}
+
 	/*
 	*	@brief:创建管道
 	*/
@@ -318,7 +417,7 @@ namespace lib_pipe
 		// 2. 结束接收线程
 		if (NULL != _pipe_param._precv_data)
 		{
-			_pipe_param._thread._is_running = false;
+			set_thread_recv_is_running(false);
 
 			// 等待线程返回结果 
 			WaitForSingleObject(_pipe_param._thread._handle, 1000 * 3);	/// 第一个参数： 线程的内核句柄，第二个参数：等待时间：3秒
@@ -347,9 +446,6 @@ namespace lib_pipe
 			CloseHandle(_pipe_param._thread._hevent);
 			_pipe_param._thread._hevent = INVALID_HANDLE_VALUE;
 		}
-
-		
-		
 
 		// 4. 重置标志
 		_pipe_param.zero();
