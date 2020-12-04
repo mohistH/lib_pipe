@@ -1,11 +1,10 @@
 // demo_create.cpp : 定义控制台应用程序的入口点。
 //
 
-#include "stdafx.h"
 #include <iostream>
 #include <windows.h>
 using namespace std;
-#include "../lib_pipe/pipe_interface.h"
+#include "pipe/pipe_interface.h"
 using namespace lib_pipe;
 
 
@@ -28,7 +27,7 @@ class pipe_win : public irecv_data
 public:
 	pipe_win()
 	{
-		_ppipe = pipe_create_win();
+		_ppipe = pipe_create();
 	}
 
 	~pipe_win()
@@ -38,35 +37,43 @@ public:
 
 	//-------------------------------------------------------------------------------------------------------------------
 
-	/*
-	*  @ brief: 初始化管道
-	*  @ const pipe_param_base - 初始化参数
-	*  @ irecv_data *precv_data - 接收函数对象
-	*  @ return - lib_pipe::ret_type
-	*/
-	ret_type init(const pipe_param_base& param)
+	//
+	// @ brief: 初始化管道
+	// @ const pipe_param_base - 初始化参数
+	// @ irecv_data *precv_data - 接收函数对象
+	// @ return - int
+	//
+	int init(const pipe_param_base& param)
 	{
-		return _ppipe->init(param, this);
+		if (_ppipe)
+			return _ppipe->init(param, this);
+		else
+			return -1;
 	}
 
-	/*
-	*  @ brief: 向管道发送数据
-	*  @ const char * pdata_send - 发送的数据内容
-	*  @ const unsigned int len_data_send - 发送的数据长度
-	*  @ return - lib_pipe::ret_type
-	*/
-	ret_type write(const char *pdata_send, const unsigned int len_data_send)
+	//
+	// @ brief: 向管道发送数据
+	// @ const char * pdata_send - 发送的数据内容
+	// @ const unsigned int len_data_send - 发送的数据长度
+	// @ return - int
+	int write(const char *pdata_send, const unsigned int len_data_send, unsigned int & len_written)
 	{
-		return _ppipe->write(pdata_send, len_data_send);
+		if (_ppipe)
+			return _ppipe->write(pdata_send, len_data_send, len_written);
+		else
+			return -1;
 	}
 
-	/*
-	*  @ brief: 关闭
-	*  @ return - lib_pipe::ret_type
-	*/
-	ret_type uninit()
+	//
+	// @ brief: 关闭
+	// @ return - lib_pipe::ret_type
+	//
+	int uninit()
 	{
-		return _ppipe->uninit();
+		if (_ppipe)
+			return _ppipe->uninit();
+		else
+			return -1;
 	}
 
 	void on_recv_data(const char *pdata, const unsigned int len_recv_data)
@@ -77,7 +84,7 @@ public:
 		{
 			cout << pdata[i];
 		}
-		
+
 		// 约定 第一个字符为Q，退出
 		if ('Q' == pdata[0])
 		{
@@ -115,10 +122,10 @@ int main(int argc, char *argv[])
 	base_param._to_create_pipe = false;
 	base_param._name = std::string("\\\\.\\pipe\\ReadPipe");
 
-	ret_type ret_val = pipe.init(base_param);
-	if (0 != ret_val.id())
+	int ret_val = pipe.init(base_param);
+	if (0 != ret_val)
 	{
-		std::cout << "error id = " << ret_val.id() << ", str = " << ret_val.str().c_str() << "\n\n";
+		std::cout << "error id = " << ret_val << "\n\n";// .id() << ", str = " << ret_val.str().c_str() << "\n\n";
 	}
 	else
 	{
@@ -146,7 +153,7 @@ int main(int argc, char *argv[])
 		{
 			if (15 < index++)
 			{
-				cout << "子进程" << argv[0] << ", 15s 到了， 还没收，退出while，即将释放资源...\n\n"; 
+				cout << "子进程" << argv[0] << ", 15s 到了， 还没收，退出while，即将释放资源...\n\n";
 				break;
 			}
 
@@ -162,6 +169,6 @@ int main(int argc, char *argv[])
 	cout << "资源释放完毕\n\n";
 
 	system("pause");
-    return 0;
+	return 0;
 }
 

@@ -1,0 +1,14 @@
+
+├─Debug   			 输出目录
+│  ├─1				# 子进程1所在路径
+│  ├─2				# 子进程2所在路径
+│  └─3				# 子进程3所在路径
+├─demo_create			子进程项目		
+│  └─Debug
+│      └─demo_create.tlog
+├─lib_pipe			管道通信动态库代码项目		
+│  └─Debug
+│      └─lib_pipe.tlog
+└─main				主进程项目
+    └─Debug
+        └─main.tlog

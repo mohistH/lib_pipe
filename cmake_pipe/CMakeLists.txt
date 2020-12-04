@@ -38,7 +38,7 @@ source_group("Header Files" FILES ${pipe_header_files})
 
 # ---------------------------------------------------------------------------------------------------
 #4. set some options
-#option(example_shared 			"an example to show how to use dynamic library" OFF)
+option(example_shared 			"an example to show how to use dynamic library" ON)
 option(lib_shared 				"to generate dynamic lbrary" 					ON)
 #option(lib_mfc 					"to generate a dynamic library to support MFC" 	OFF)
 #option(lib_static 				"to create an static library" 					OFF)
@@ -59,10 +59,12 @@ if(lib_shared)
 		# to create static library
 		if(lib_static)
 			add_library( lib_pipe_static STATIC ${pipe_src} ${pipe_header_files})
+		else()
+			# to create dynamic library
+			add_library( lib_pipe_shared SHARED ${pipe_src} ${pipe_header_files})
 		endif(lib_static)
 
-		# to create dynamic library
-		add_library( lib_pipe_shared SHARED ${pipe_src} ${pipe_header_files})
+		
 
 		# set_property(TARGET lib_udp_shared PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR})
  	ENDIF (CMAKE_SYSTEM_NAME MATCHES "Windows")
@@ -117,8 +119,10 @@ if (example_shared)
 
 
 	# 7.3 to get an executable program
-	add_executable(exam_lib_dyn ${exam_src})
+	add_executable(exam_lib_dyn ${exam_src} ${pipe_header_files})
 
+	target_include_directories(exam_lib_dyn PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+	
 	#7.4 to link library
 	IF (CMAKE_SYSTEM_NAME MATCHES "Windows")
 		target_link_libraries(exam_lib_dyn lib_pipe_shared)

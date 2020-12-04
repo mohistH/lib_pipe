@@ -1,25 +1,26 @@
-#include "pipe/pipe_interface.h"
 
+#include "pipe/pipe_interface.h"
 #ifdef compiler_is_vs
+
 #include "pipe/pipe_helper.h"
-#endif //!os_is_win
+#endif //!compiler_is_vs
 
 namespace lib_pipe
 {
-	/*
-	*	@brief: 创建windows pipe接口
-	*/
-	ipipe_interface *pipe_create_win()
+	//
+	//	@brief: 创建管道通信接口
+	//
+	ipipe_interface *pipe_create()
 	{
-		ipipe_interface* pobj = nullptr;
+		ipipe_interface* pobj = NULL;
 		pobj = new(std::nothrow) pipe_helper;
 
 		return pobj;
 	}
 
-	/* 
-	*	@brief:
-	*/
+	// 
+	//	@brief:
+	//
 	void pipe_release(ipipe_interface* pobj)
 	{
 		if (NULL != pobj || nullptr != pobj)
@@ -29,9 +30,9 @@ namespace lib_pipe
 		}
 	}
 
-	/*
-	*	@brief: 常用工具类-std::string转std::wstring
-	*/
+	//
+	//	@brief: 常用工具类-std::string转std::wstring
+	//
 	std::wstring utils::str2wstr_win(const std::string &str)
 	{
 		if (str.empty())
@@ -46,9 +47,9 @@ namespace lib_pipe
 		return ret;
 	}
 
-	/*
-	*	@brief:
-	*/
+	//
+	//	@brief:
+	//
 	std::string utils::get_cwd()
 	{
 		const int arr_size_256 = 256;
@@ -81,9 +82,9 @@ namespace lib_pipe
 	}
 
 #ifdef compiler_is_vs
-	/*
-	*	@brief:
-	*/
+	// 
+	// 	@brief:
+	// 
 	void utils::tchar2char(const TCHAR *ptchar_arr, char * pchar_arr)
 	{
 		if (NULL == ptchar_arr || nullptr == ptchar_arr)

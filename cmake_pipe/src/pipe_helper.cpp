@@ -1,22 +1,25 @@
 
+
 #include "pipe/pipe_helper.h"
+#ifdef compiler_is_vs
 
 namespace lib_pipe
 {
-	/*
-	* @brief: 线程函数
-	*/
-	DWORD WINAPI thread_recv_data(LPVOID lpParam)
+
+	// 
+	// @brief:接收管道数据线程函数
+	// 
+	DWORD WINAPI pipe_helper::thread_recv_data(LPVOID lpParam)
 	{
 		// 准备参数
-		pipe_helper* pipe_obj	= NULL;
-		pipe_obj				= reinterpret_cast<pipe_helper*>(lpParam);
-		
+		pipe_helper* pipe_obj = NULL;
+		pipe_obj = reinterpret_cast<pipe_helper*>(lpParam);
+
 		// 1. 没有对象
-		if (NULL				== pipe_obj)
+		if (NULL == pipe_obj)
 			return 0;
 
-		
+
 
 		// 2. 开始接收数据，先准备参数
 		pipe_param_win& pipe_param = pipe_obj->get_pipe_param();
@@ -28,83 +31,114 @@ namespace lib_pipe
 		DWORD len_real_read = 0;
 
 
-		OVERLAPPED over_lapped = { 0, 0, 0, 0, pipe_param._thread._hevent};
+		OVERLAPPED over_lapped = { 0, 0, 0, 0, pipe_param._thread._hevent };
 
-		//if (INVALID_HANDLE_VALUE != pipe_param._thread._hevent)
-		//	return 0;
+		if (INVALID_HANDLE_VALUE != pipe_param._thread._hevent)
+			return 0;
 
-
+		pipe_obj->log("\n接收线程，1111即将进入while\n\n");
 		// 线程运行
-		while (pipe_param._thread._is_running)	/// 通过标志位 控制线程运行
+		while (pipe_obj->get_thread_recv_is_running())	// 通过标志位 控制线程运行
 		{
-			// 等待加入管道, 连接 信息写入overlap中
-			// ConnectNamedPipe(pipe_param._handle, &over_lapped);
-			//等待
-			// WaitForSingleObject(pipe_param._thread._hevent, INFINITE);
+			pipe_obj->log("\n接收线程，2222等待加入管道, 连接 信息写入overlap中\n\n");
 
-			//if (!GetOverlappedResult(pipe_param._handle, &over_lapped, &len_real_read, TRUE))
-			//{
-			//	break;
-			//}
+			 // 等待加入管道, 连接 信息写入overlap中
+			 ConnectNamedPipe(pipe_param._handle, &over_lapped);
 
-			//std::cout << "\n\n进入接收while\n\n";
+			 pipe_obj->log("\n接收线程，等待, 3333INFINITE:一直等待\n\n");
+			 // 等待, INFINITE:一直等待
+			 WaitForSingleObject(pipe_param._thread._hevent, INFINITE);
 
+			 pipe_obj->log("\n接收线程，等待, 4444I检测io是否完成,完成的话就停止\n\n");
+			 // 检测io是否完成,完成的话就停止
+			if (!GetOverlappedResult(pipe_param._handle, &over_lapped, &len_real_read, TRUE))
+			{
+				break;
+			}
+
+
+			pipe_obj->log("\n接收线程，等待, 5555读取管道数据 ： 阻塞\n\n");
 			// 读取管道数据 ： 阻塞
-			int ret_val			= (int)ReadFile(	pipe_param._handle,	// 管道标识符
-													arr_recv_data,		// 接收缓冲
-													pipe_buf_size_4096, // 接收缓冲区大小
-													&len_real_read,		// 真正读入长度
-													NULL				// 默认传递NULL
-												);
+			int ret_val = (int)ReadFile(pipe_param._handle,	// 管道标识符
+										arr_recv_data,		// 接收缓冲
+										pipe_buf_size_4096, // 接收缓冲区大小
+										&len_real_read,		// 真正读入长度
+										NULL				// 默认传递NULL
+			);
 			// 2.1 读取成功
 			if (1 == ret_val)
 			{
 				// 2.1.1 如果超过缓冲区长度，则丢弃, 准备接收下一组数据
 				if (pipe_buf_size_4096 < len_real_read || 0 == len_real_read)
 				{
+					pipe_obj->log("\n接收线程，等待, 6666如果超过缓冲区长度，则丢弃, 准备接收下一组数据\n\n");
 				}
 				else
 				{
+
+					pipe_obj->log("\n接收线程，等待, 7777 长度合适，加上结束符,调用接收函数\n\n");
+
 					// 2.1.2 长度合适，加上结束符
 					arr_recv_data[len_real_read] = '\0';
-					
+
 					// 调用接收函数
 					pipe_param._precv_data->on_recv_data(arr_recv_data, len_real_read);
 				}
+
+				memset(arr_recv_data, 0, pipe_buf_size_4096 + 1);
 			}
 			// 2.2 读取失败
-			else 
+			else
 			{
 				// 继续读取下一个
+				pipe_obj->log("\n接收线程，等待, 8888 读取失败\n\n");
 			}
 
-			// 避免CPU被一直忙于处理当前线程
+			// 避免CPU被一直忙于处理当前线程，考虑改为信号量
 			Sleep(2);
 
-			memset(arr_recv_data, 0, pipe_buf_size_4096 + 1);
-			// DisconnectNamedPipe(pipe_param._handle);
+			pipe_obj->log("\n接收线程，等待, 9999 断开管道\n\n");
+			// 断开管道
+			DisconnectNamedPipe(pipe_param._handle);
 		}
 
 		return 0;
 	}
 
 
-	/*
-	*	@brief: 初始化参数和创建管道
-	*/
-	lib_pipe::ret_type pipe_helper::init(const pipe_param_base& param, irecv_data *precv_data)
+
+
+	// 
+	// @brief:获取接收线程运行状态
+	// 
+	bool pipe_helper::get_thread_recv_is_running()
+	{
+		return _pipe_param._thread._is_running;
+	}
+
+	// 
+	// @brief:设置接收线程运行状态
+	// 
+	void pipe_helper::set_thread_recv_is_running(const bool val)
+	{
+		_pipe_param._thread._is_running = val;
+	}
+
+	//
+	//	@brief: 初始化参数和创建管道
+	//
+	int pipe_helper::init(const pipe_param_base& param, irecv_data *precv_data)
 	{
 		// 参数引用
 		pipe_param_base& param_base = _pipe_param._base;
-		int error_id_20				= -20;
 
 		// 定义返回值
-		ret_type ret_val;
+		int ret_val = 0;
 
-		// 1. pipe名字为空
+		// 1. 管道名字为空
 		if (0 == param._name.length())
 		{
-			ret_val.set(error_id_20, std::string("failure, pipe's name is null"));//  = std::make_pair());
+			ret_val = -2;
 			_pipe_param.zero();
 
 			return ret_val;
@@ -114,7 +148,8 @@ namespace lib_pipe
 		//_pipe_param._base._is_server		= is_server;
 		//_pipe_param._base._name			= str_pipe_name;
 		param_base = param;
-		// 
+
+		// 需要接收
 		if (NULL != precv_data || nullptr != precv_data)
 			_pipe_param._precv_data = precv_data;
 
@@ -132,7 +167,7 @@ namespace lib_pipe
 		}
 
 		// 检查创建或者打开管道返回值, 这里，创建或者打开管道失败，则返回失败
-		if (0 != ret_val.id())
+		if (0 != ret_val)
 		{
 			_pipe_param.zero();
 			return ret_val;
@@ -145,11 +180,26 @@ namespace lib_pipe
 		// 需要接收数据，再创建线程
 		if (NULL != _pipe_param._precv_data)
 		{
-			// 4.1 标记线程运行标记为true
-			thread_param._is_running = true;
-
 			// 创建事件
-			//thread_param._hevent = CreateEvent(NULL, FALSE, FALSE, FALSE);
+			//
+			// 参数1 lpEventAttributes    权限,一般NULL就是默认权限
+			// 参数2 bManualReset        TRUE代表手动重置,FALSE自动重置
+			// 参数3 bInitialState       TRUE代表可触发, FALSE非触发(阻塞)
+			// 参数4 lpName              一个对象的名称,跨进程寻址,一般NULL
+			//
+			thread_param._hevent = CreateEvent(NULL, FALSE, FALSE, FALSE);
+
+			if (INVALID_HANDLE_VALUE == thread_param._hevent)
+			{
+				ret_val = GetLastError();
+				_pipe_param.zero();
+				return ret_val;
+			}
+
+
+			// 4.1 标记线程运行标记为true
+				set_thread_recv_is_running(true);
+
 
 			// 4.2 创建线程
 			thread_param._handle = CreateThread(NULL,	// 默认 NULL
@@ -163,8 +213,9 @@ namespace lib_pipe
 			// 创建接收线程失败，返回错误
 			if (INVALID_HANDLE_VALUE == thread_param._handle)
 			{
-				ret_val.set(error_id_20 - 1, std::string("failure, recv data thread created failure"));// = std::make_pair(error_id_20 - 1, std::string("failure, recv data thread created failure"));
 
+				//ret_val.set(error_id_20 - 1, std::string("failure, recv data thread created failure"));// = std::make_pair(error_id_20 - 1, std::string("failure, recv data thread created failure"));
+				_pipe_param.zero();
 				return ret_val;
 			}
 			else
@@ -181,30 +232,33 @@ namespace lib_pipe
 	}
 
 
-	/*
-	*	@brief: 向管道写入数据
-	*/
-	lib_pipe::ret_type pipe_helper::write(const char *pdata_send, const unsigned int len_data_send)
+	//
+	//	@brief: 向管道写入数据
+	//
+	int pipe_helper::write(const char *pdata_send, const unsigned int len_data_send, unsigned int& len_written)
 	{
 		// 函数返回值
-		ret_type ret_val;
+		int ret_val = 0;
 
 		// 0. 数据为空
 		if (NULL == pdata_send || nullptr == pdata_send)
 		{
-			ret_val.set(-21, std::string("failure, pdata_send is null"));
+			ret_val = -2;
+			len_written = 0;
+			// ret_val.set(-21, std::string("failure, pdata_send is null"));
 			return ret_val;
 		}
 
 		// 1. 没有连接，则返回失败
 		if (!is_connected())
 		{
-			ret_val.set(-20, std::string("failure, pipe doesnt created"));
+			ret_val			= -3;
+			len_written = 0;
+			// ret_val.set(-20, std::string("failure, pipe doesnt created"));
 			return ret_val;
 		}
 
 		// 2. 向管道写入数据
-
 		// 2.1 返回写入多少数据
 		DWORD len_has_written = 0;
 		int ret = (int)WriteFile(	_pipe_param._handle,	// 管道标识
@@ -215,23 +269,32 @@ namespace lib_pipe
 		// 写入失败
 		if ( 0 == ret || 0 == len_has_written)
 		{
-			ret_val.set(GetLastError(), std::string("GetLastError"));
+			//ret_val.set(GetLastError(), std::string("GetLastError"));
+			ret_val = GetLastError();
+			len_written = 0;
+		}
+		// 写入成功
+		else
+		{
+			ret_val = 0;
+			len_written = len_has_written;
 		}
 		
 		return ret_val;
 	}
 
-	/*
-	*	@brief: 关闭管道
-	*/
-	lib_pipe::ret_type pipe_helper::uninit()
+	//
+	//	@brief: 关闭管道
+	//
+	int pipe_helper::uninit()
 	{
-		ret_type ret_val;
+		int ret_val = 0;
 
 		// 1.若没有打开，则返回 
 		if (!is_connected())
 		{
-			ret_val.set(-20, std::string("failure, pipe doesnt open"));
+			ret_val = -2;
+			// ret_val.set(-20, std::string("failure, pipe doesnt open"));
 			return ret_val;
 		}
 
@@ -241,33 +304,81 @@ namespace lib_pipe
 		return ret_val;
 	}
 
-	/*
-	*	@brief: 构造函数，初始化参数
-	*/
+	// 
+	// @brief: 构造函数，初始化参数
+	// 
 	pipe_helper::pipe_helper()
 	{
 		_pipe_param.zero();
 	}
 
-	/*
-	*	@brief: 检查管道是否已经连接
-	*/
+	//
+	//	@brief: 检查管道是否已经连接
+	//
 	bool pipe_helper::is_connected()
 	{
 		return (INVALID_HANDLE_VALUE == _pipe_param._handle) ? false : true;
 	}
 
-	/*
-	*	@brief:创建管道
-	*/
-	lib_pipe::ret_type pipe_helper::create_pipe_name()
+
+	// 
+	// @brief: 调试日输出
+	// 
+	void pipe_helper::log(const char *pdata, ...)
+	{
+#ifdef is_debug
+		va_list ap;
+		va_start(ap, pdata);
+
+		// 1、计算得到长度
+		//---------------------------------------------------
+		// 返回 成功写入的字符个数
+		int count_write = snprintf(NULL, 0, pdata, ap);
+		va_end(ap);
+
+		// 长度为空
+		if (0 >= count_write)
+			return;
+
+		count_write++;
+
+		// 2、构造字符串再输出
+		//---------------------------------------------------
+		va_start(ap, pdata);
+
+		char *pbuf_out = NULL;
+		pbuf_out = (char *)malloc(count_write);
+		if (NULL == pbuf_out)
+		{
+			va_end(ap);
+			return;
+		}
+
+		// 构造输出
+		vsnprintf(pbuf_out, count_write, pdata, ap);
+		// 释放空间
+		va_end(ap);
+
+		// 输出结果
+		std::cout << pbuf_out;
+
+		// 释放内存空间
+		free(pbuf_out);
+		pbuf_out = NULL;
+#endif // 
+	}
+
+	// 
+	// @brief:创建管道
+	// 
+	int pipe_helper::create_pipe_name()
 	{
 		// 参数引用
 		pipe_param_base& param_base = _pipe_param._base;
 		pipe_param_win& param		= _pipe_param;
 
 		// 指定返回值
-		ret_type ret_val;///  = std::make_pair(0, std::string("success"));
+		int ret_val = 0;///  = std::make_pair(0, std::string("success"));
 
 		// 1. 已经创建，则先关闭
 		if (INVALID_HANDLE_VALUE != param._handle)
@@ -302,65 +413,78 @@ namespace lib_pipe
 		// 2.1 创建失败
 		if ( INVALID_HANDLE_VALUE == param._handle)
 		{
-			ret_val.set(GetLastError(), std::string("GetLastError"));// = std::make_pair(GetLastError(), std::string("failure"));
+			ret_val = GetLastError(); // ret_val.set(GetLastError(), std::string("GetLastError"));// = std::make_pair(GetLastError(), std::string("failure"));
 			return ret_val;
 		}
 
-		// 3. 创建成功
+		// 3. 创建成功，直接返回
 		return ret_val;
 	}
 
-	/*
-	*	@brief: 关闭，释放资源
-	*/
+	//
+	//	@brief: 关闭，释放资源
+	//
 	void pipe_helper::pre_uninit()
 	{
-		// 2. 结束接收线程
-		if (NULL != _pipe_param._precv_data)
+		try
 		{
-			_pipe_param._thread._is_running = false;
+			// 2. 结束接收线程
+			if (NULL != _pipe_param._precv_data)
+			{
+				set_thread_recv_is_running(false);
 
-			// 等待线程返回结果 
-			WaitForSingleObject(_pipe_param._thread._handle, 1000 * 3);	/// 第一个参数： 线程的内核句柄，第二个参数：等待时间：3秒
+				// 创建接收线程句柄不为空，再关闭线程
+				if (INVALID_HANDLE_VALUE != _pipe_param._thread._handle)
+				{
+					// 等待线程返回结果 
+					WaitForSingleObject(_pipe_param._thread._handle, 1000 * 3);	/// 第一个参数： 线程的内核句柄，第二个参数：等待时间：3秒
 
-			// 关闭内核线程句柄
-			CloseHandle(_pipe_param._thread._handle);
+					// 关闭内核线程句柄
+					CloseHandle(_pipe_param._thread._handle);
 
-			// 将线程句柄设置为无效
-			_pipe_param._thread._handle = INVALID_HANDLE_VALUE;
+					// 将线程句柄设置为无效
+					_pipe_param._thread._handle = INVALID_HANDLE_VALUE;
+				}
+				// 接收线程句柄为空，创建接收线程失败，无需关闭
+				else
+				{
+					;
+				}
+			}
+			else
+			{
+				// 不需要接收数据，即没有创建线程
+			}
+
+			// 3. 关闭
+			if (INVALID_HANDLE_VALUE != _pipe_param._handle)
+			{
+				DisconnectNamedPipe(_pipe_param._handle);
+				CloseHandle(_pipe_param._handle);
+				_pipe_param._handle = INVALID_HANDLE_VALUE;
+			}
+
+			if (INVALID_HANDLE_VALUE != _pipe_param._thread._hevent)
+			{
+				CloseHandle(_pipe_param._thread._hevent);
+				_pipe_param._thread._hevent = INVALID_HANDLE_VALUE;
+			}
+
+			// 4. 重置管道参数
+			_pipe_param.zero();
 		}
-		else
+		catch (...)
 		{
-			// 没有创建线程
+			// 异常出现了 ,吞下异常。
 		}
-
-		// 3. 关闭
-		if (INVALID_HANDLE_VALUE != _pipe_param._handle)
-		{
-			DisconnectNamedPipe(_pipe_param._handle);
-			CloseHandle(_pipe_param._handle);
-			_pipe_param._handle = INVALID_HANDLE_VALUE;
-		}
-
-		if (INVALID_HANDLE_VALUE != _pipe_param._thread._hevent)
-		{
-			CloseHandle(_pipe_param._thread._hevent);
-			_pipe_param._thread._hevent = INVALID_HANDLE_VALUE;
-		}
-
-		
-		
-
-		// 4. 重置标志
-		_pipe_param.zero();
 	}
 
-	/*
-	*	@brief:
-	*/
-	lib_pipe::ret_type pipe_helper::open()
+	//
+	//	@brief:打开管道
+	//
+	int pipe_helper::open()
 	{
-		ret_type ret_val;
+		int ret_val = 0;
 
 		// 1. 如果已经连接，则关闭
 		if (INVALID_HANDLE_VALUE != _pipe_param._handle)
@@ -389,20 +513,22 @@ namespace lib_pipe
 		// 2.1 创建失败
 		if (INVALID_HANDLE_VALUE == _pipe_param._handle)
 		{
-			ret_val.set(GetLastError(), std::string("GetLastError"));
+			//ret_val.set(GetLastError(), std::string("GetLastError"));
+			ret_val = GetLastError();
 		}
 
 		return ret_val;
 	}
 
-	/*
-	*	@brief:析构函数
-	*/
+	//
+	//	@brief:析构函数
+	//
 	pipe_helper::~pipe_helper()
 	{
 		// 1.若打开，则关闭
 		if (is_connected())
 		{
+			// 如果出现异常，该函数将吞下异常，不会继续传播异常
 			pre_uninit();
 		}
 		else
@@ -413,3 +539,6 @@ namespace lib_pipe
 
 }/// !lib_pipe
 
+
+
+#endif // !compiler_is_vs

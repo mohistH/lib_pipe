@@ -3,8 +3,6 @@
 #include <utility>
 
 
-
-
 // windows
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32)
 
@@ -55,7 +53,8 @@
 
 #ifdef compiler_is_vs
 #include <windows.h>
-#endif //!
+#endif //! compiler_is_vs
+
 
 
 
@@ -66,65 +65,9 @@ namespace lib_pipe
 #endif ///! __cplusplus
 
 
-
-	/* 数据类型定义 */
-//-------------------------------------------------------------------------------------------------------------------
-
-
-	/*
-	* @brief: 函数返回值， 格式：<错误代码，错误信息字符串>
-				说明：
-						1. 错误代码
-							1.1 负数，则为函数数自定义返回的错误代码，且从 -20开始递减， -21， -22， -23，
-							1.2 正数，则为调用【GetLastError】的返回值，且【错误信息字符串】为【"failure"】
-						2. 错误信息字符串
-							2.1 "success" - 成功， 且【错误代码】为0
-							2.2 不为 "success"	- 失败，表示错误提示字符串，且【错误代码】不为0
-						3. 例子
-							成功 <0, "success">
-							失败 <-20, "failure, XXXX">
-							失败 <GetLastError(), "GetLastError">
-	*/
-	typedef std::pair<int, std::string> pair_int_str;
-
-	/*
-	* @brief: 函数返回值
-	*/
-	struct ret_type_
-	{
-		// 保存
-		void set(const int id, std::string str)
-		{
-			_value = std::make_pair(id, str);
-		}
-
-		// 返回错误代码
-		int id() { return _value.first; }
-
-		// 返回错误信息字符串
-		std::string str() { return _value.second; }
-
-		void zero()
-		{
-			_value = std::make_pair(0, "success");
-		}
-
-		ret_type_()
-		{
-			zero();
-		}
-
-	private:
-		pair_int_str	_value;
-	};
-
-	// 函数返回值
-	typedef ret_type_ ret_type;
-
-
-	/*
-	* @brief: 管道需要的参数
-	*/
+	//
+	// @brief: 管道通信初始化需要的参数
+	//
 	struct pipe_param_base_
 	{
 		// 名字
@@ -135,7 +78,7 @@ namespace lib_pipe
 
 		void zero()
 		{
-			_name = std::string("");
+			_name			= std::string("");
 			_to_create_pipe = false;
 		}
 
@@ -149,56 +92,62 @@ namespace lib_pipe
 	typedef pipe_param_base_ pipe_param_base;
 
 
-		/* 类定义 */
+	// 类定义 开始 
 //-------------------------------------------------------------------------------------------------------------------
 
-	/*
-	* @brief: 接收数据,需要继承该类并实现【on_recv_data】接口
-	*/
+	//
+	// @brief: 接收数据,需要继承该类并实现【on_recv_data】接口
+	//
 	class irecv_data
 	{
 	public:
-		/*
-		*  @ brief: 接收底层收到的数据
-		*  @ const char * pdata - 收到的数据
-		*  @ const unsigned int len_recv_data - 收到的数据长度
-		*  @ return - void
-		*/
+		//  
+		//  @ brief: 接收底层收到的数据
+		//  @ const char * pdata - 收到的数据
+		//  @ const unsigned int len_recv_data - 收到的数据长度
+		//  @ return - void
 		virtual void on_recv_data(const char *pdata, const unsigned int len_recv_data) = 0;
 	};
 
-	/*
-	* @brief: 管道接口
 
-	*  @ std::string str_pipe_name - 管道名字 ， 例： "\\\\.\\pipe\\ReadPipe"
-	*  @ bool to_create_pipe - true-创建， false - 不创建，直接连
-	*/
+//-------------------------------------------------------------------------------------------------------------------
+	
+	// 
+	// @brief: 管道通信接口类，包括初始化，打开发送，关闭接口
+	// 
 	class ipipe_interface
 	{
 	public:
 		virtual ~ipipe_interface() {}
 
-		/*
-		*  @ brief: 初始化管道
-		*  @ const pipe_param_base - 初始化参数
-		*  @ irecv_data *precv_data - 接收函数对象
-		*  @ return - lib_pipe::ret_type
-		*/
-		virtual ret_type init(const pipe_param_base& param, irecv_data *precv_data) = 0;
+		//  
+		//  @ brief: 初始化管道
+		//  @ const pipe_param_base - 初始化参数
+		//  @ irecv_data *precv_data - 接收函数对象,若不需要接收代码，则传递nullptr 或者 NULL
+		//  @ return - int	
+		//			返回值 X:
+		//			0 - 初始化成功
+		//			X > 0 - 初始化失败，X为调用GetLastError函数或者来自errno的结果
+		virtual int init(const pipe_param_base& param, irecv_data *precv_data) = 0;
 
-		/*
-		*  @ brief: 向管道发送数据
-		*  @ const char * pdata_send - 发送的数据内容
-		*  @ const unsigned int len_data_send - 发送的数据长度
-		*  @ return - lib_pipe::ret_type
-		*/
-		virtual ret_type write(const char *pdata_send, const unsigned int len_data_send) = 0;
 
-		/*
-		*  @ brief: 关闭
-		*  @ return - lib_pipe::ret_type
-		*/
-		virtual ret_type uninit() = 0;
+		// 
+		// @ brief: 向管道发送数据
+		// @ const char * pdata_send - 发送的数据内容
+		// @ const unsigned int len_data_send - 发送的数据长度
+		// @ const unsigned int& len_written - 已经发送的数据长度
+		// @ return - int
+		//			返回值 X：
+		//			X = 0 - 管道写入数据成功，且len_written与len_data_send相等
+		//			X > 0 - 管道写入数据失败，X为调用GetLastError函数或者来自errno的结果，且len_written值为0
+		virtual  int write(const char *pdata_send, const unsigned int len_data_send, unsigned int& len_written) = 0;
+
+		// 
+		// @ brief: 关闭
+		// @ return - int
+		//			0 - 关闭成功
+		//			-2 - 关闭失败，管道没有打开。
+		virtual int uninit() = 0;
 
 	};
 
@@ -207,37 +156,36 @@ namespace lib_pipe
 #endif ///! __cplusplus
 
 
-		/* 创建导出函数 */
+	// 创建导出函数 
 //-------------------------------------------------------------------------------------------------------------------
 		
 		
-	/* 
-	*  @ brief: 创建支持Windows的pipe对象, 失败返回 nullptr，需要手动调用函数【release_pipe】释放
-	*  @ return - pipe_interface *
-			nullptr - 创建失败
-	*/
-	extern "C" _lib_pipe_api_ ipipe_interface *pipe_create_win();
+	// 
+	// @ brief: 创建管道通信对象, 失败返回NULL(为了兼容低版本编译器，否则，返回nullptr)，需要手动调用函数【release_pipe】释放
+	// @ return - pipe_interface *
+	//			NULL - 创建失败
+	//
+	extern "C" _lib_pipe_api_ ipipe_interface *pipe_create();
 
-
-	/* 
-	*  @ brief: 释放【ipipe_interface*】对象, 将 pobj 设置为 nullptr
-	*  @ ipipe_interface * pobj - 【create_pipe_win】函数创建的对象
-	*  @ return - extern " _lib_pipe_api_ void
-	*/
+	// 
+	// @ brief: 释放【ipipe_interface*】对象, 将 pobj 设置为 NULL(为了兼容低版本编译器，否则，设置为nullptr)
+	// @ ipipe_interface * pobj - 【create_pipe_win】函数创建的对象
+	// @ return - extern " _lib_pipe_api_ void
+	//
 	extern "C" _lib_pipe_api_ void pipe_release(ipipe_interface* pobj);
 
 
 //-------------------------------------------------------------------------------------------------------------------
-	/*
-	* @brief: 常用工具类
-	*/
+	// 
+	// @brief: 常用工具类
+	// 
 	class _lib_pipe_api_ utils
 	{
 	public:
 		// 将std::string 转为 std::wstring
 		static std::wstring str2wstr_win(const std::string &str);
 		
-		// 获取当前工作墓库，
+		// 获取当前工作目录库，
 		static std::string get_cwd();
 
 #ifdef compiler_is_vs

@@ -1,12 +1,23 @@
 # lib_pipe
 --------------------------------
+## 更新日志  
+```
+04-12-2020
+  1. 去除自定义函数返回值，改为int作为函数返回值并增加相应的说明
+  2. pipe_create_win函数改名为pepe_create，用法不变
+  3. write函数额外增加一个参数，意义：吐出实际发送数据长度，函数的返回值表明当前调用函数状态：成功or失败
+  4. pipe_helper类的析构函数增加异常处理，避免析构函数出现异常而造成程序异常中断运行，内存未能释放的现象。
+  5. Linux下的管道通信正在路上......
+```
+
+
 ## 1. 关于  
 
-  lib_pipe是一个用c++编写的管道通信动态库，截至目前（15/9/2020），完成了Windows上的收发。创建这个项目的初衷： 
+  lib_pipe是一个用c++编写的命名管道通信动态库，截至目前（15/9/2020），完成了Windows上的收发。创建这个项目的初衷： 
   * 现在有一个main程序，需要创建1个或者多个子进程，每个子进程都有自己的活儿要干，且，创建子进程时，还需要读取每个进程的配置文件
   * main程序需要支持控制子进程的退出  
   之前没有做过这样的需求，都是多线程玩的嗨。弥补多进程知识....  
-  封装的很简陋，持续完善
+  * 代码优化有待提升,持续完善中......
 
 ## 2. 目录说明  
   * 2.1 根目录说明 
@@ -57,38 +68,39 @@
 * 3.8 main项目和  demo_create 都使用lib_pipe, 动态库名字和目录，配置到了VS的项目属性中。因为lib输出到Debug目录下，所以将lib目录配置为：${TargetDir}
 
 ## 4.lib_pipe使用  
-
   按照习惯，封装了以下操作：
   * init-初始化管道信息
   * wrie-向管道写入数据
   * uninit-释放初始化申请的资源  
-  * on_recv_data-接收数据（单独创建了一个线程接收数据  
+  * on_recv_data-接收数据（单独创建了一个线程接收数据，收到数据后，将调用该函数，将数据吐出）  
 
   文件，包括，lib库文件，dll动态库，和头文件，头文件名： pipe_interface.h
 
-## 5. 返回值说明  
-  c++11引入了tuple，但是当初考虑到需要兼容不支持c++11的环境，故换作了std::pair作为函数的返回值，以便能获取更多有效的信息。  
-  之前以int为函数的返回值，通过定义各种数值对应其结果，比如0-成功，1，字符串为空，2-文件不存在之类的。  
-  lib_pipe使用的返回值声明如下：
-```
-struct ret_type_
-{
-/* 省略一些函数的声明和定义*/
-private:
-	pair_int_str	_value;
-};
-```
-  pair_int_str的定义及说明如下：
-```
-typedef std::pair<int, std::string> pair_int_str;
-```
-  请查看文件**pipe_interface.h**中的定义。
+~~## 5. 返回值说明~~  
+  ~~c++11引入了tuple，但是当初考虑到需要兼容不支持c++11的环境，故换作了std::pair作为函数的返回值，以便能获取更多有效的信息。~~  
+  ~~之前以int为函数的返回值，通过定义各种数值对应其结果，比如0-成功，1，字符串为空，2-文件不存在之类的。~~  
+  ~~lib_pipe使用的返回值声明如下：~~
+~~```~~
+~~struct ret_type_~~
+~~{~~
+~~/* 省略一些函数的声明和定义*/~~
+~~private:~~
+	~~pair_int_str	_value;~~
+~~};~~
+~~```~~
+  ~~pair_int_str的定义及说明如下：~~
+~~```~~
+~~typedef std::pair<int, std::string> pair_int_str;~~
+~~```~~
+  ~~请查看文件**pipe_interface.h**中的定义。~~
 
 
 ## 6. 接收  
-  * 接收需要继承类【irecv_data】,并实现函数【on_recv_data】
-  * 初始化函数 init的第二个参数需要传递为继承【ipipe_interface】类的对象
-  * 不需要接收，传递NULL即可
+  * 6.1 需要接收
+     * 6.1.1 接收需要继承类【irecv_data】,并实现函数【on_recv_data】，当收到数据时，会调用该函数
+     * 6.1.2 初始化函数 init的第二个参数类型为继承【irecv_data】的类
+  * 6.2 不需要接收，传递NULL（为了兼容低版本的编译器）即可
+  * 更多细节，请参看example中的接收部分代码
 
 ## 7.一个例子（非完整）  
   lib_pipe的用法可以在项目 main 和 demo_create中找到，包括收发。
@@ -98,10 +110,10 @@ typedef std::pair<int, std::string> pair_int_str;
 pipe_param_base base_param;
 base_param._to_create_pipe = false;
 base_param._name = std::string("\\\\.\\pipe\\ReadPipe");
-ret_type ret_val = pipe.init(base_param);
-if (0 != ret_val.id())
+int ret_val = pipe.init(base_param);
+if (0 != ret_val)
 {
-	std::cout << "error id = " << ret_val.id() << ", str = " << ret_val.str().c_str() << "\n\n";
+	std::cout << "error id = " << ret_val << "\n\n";
 }
 else
 {
@@ -115,11 +127,11 @@ const char arr_send[] = "Q";	/// 子进程约定收到 Q 就结束进程
 for (int i = 0; i < pipe_count_3; i++)
 {
 	cout << "\n\n正在发送:";
-	ret_type ret_val = pipe_arr[i].write(arr_send, sizeof(arr_send));
-	if (0 != ret_val.id())
-		cout << "i = " << i << ", 发送失败，id = " << ret_val.id() << "\n\n";
+	int ret_val = pipe_arr[i].write(arr_send, sizeof(arr_send));
+	if (0 != ret_val)
+		cout << "i = " << i << ", 发送失败，id = " << ret_val << "\n\n";
 	else
-		cout << "i = " << i << ", 发送成功，id = " << ret_val.id() << "\n\n";
+		cout << "i = " << i << ", 发送成功，id = " << ret_val << "\n\n";
 }
 ```
 
@@ -148,6 +160,8 @@ void on_recv_data(const char *pdata, const unsigned int len_recv_data)
 	}
 }
 ```
+
+
 ## 8. License 
   > [BSD licenses](https://opensource.org/licenses/BSD-3-Clause)
 
