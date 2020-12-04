@@ -9,8 +9,8 @@ del /s *.exp
 del /s *.obj
 del /s *.iobj
 del /s *.pch
-del /s *.pch
+del /s *.ipch
 
-rd /s /q .vs
+rd /s /q %cd%\*.vs
 
 pause

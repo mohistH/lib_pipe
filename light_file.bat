@@ -15,4 +15,7 @@ del /s *.tli
 del /s *.exp
 del /s *.pch
 
-rd /s /q %cd%\.vs
+rd /s /q %cd%\cmake_pipe\build\.vs
+rd /s /q %cd%\vs_pipe\.vs
+
+pause
